@@ -12,7 +12,7 @@ Radar.B              = 550e6;      % LFM Bandwidth
 Radar.pulses         = 1;          % Number of Pulses
 
 % Target Details
-Target.A           = [0 3 6 14 16 14]-20; % snr in dB
+Target.A   	= [0 3 6 14 16 14]-20; % snr in dB
 Target.rngFnt   = 10e3;
 Target.rngOff	= [-10 -5 0 2 5 5.4]; % rng offset in meters wrt center of gate
 
