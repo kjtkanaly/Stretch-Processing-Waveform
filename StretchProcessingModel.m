@@ -5,10 +5,11 @@ clear all;
 includeNoise	= false;
 
 % Radar Parameters
-Radar.T               = 64e-6;       % LFM Period
-Radar.fs              = 0.8e9;       % First Sample Frequency
-Radar.fs2            = 10e6;        % Second Sampling Frequency
-Radar.B              = 70e6;         % LFM Bandwidth
+Radar.T              = 64e-6;      % LFM Period
+Radar.fs             = 0.7e9;      % First Sample Frequency
+Radar.fs2            = 5e6;        % Second Sampling Frequency
+Radar.B              = 550e6;      % LFM Bandwidth
+Radar.pulses         = 1;          % Number of Pulses
 
 % Target Details
 Target.A           = [0 3 6 14 16 14]-20; % snr in dB
@@ -44,37 +45,37 @@ function [signalDC, Signal] = StretchProcessingWaveform(radar,target,includeNois
 	c	= physconst('lightspeed');		% (m/s) - Speed of Light
 
 	% Radar Parameters
-	T					= radar.T;
-	fs					= radar.fs;
-	fs2				= radar.fs2;
-	pulses			= radar.pulses;
-	B					= radar.B;
-	D					= fs/fs2;
+	T  		= radar.T;
+	fs		= radar.fs;
+	fs2		= radar.fs2;
+	pulses		= radar.pulses;
+	B		= radar.B;
+	D		= fs/fs2;
 	chirp_rate	= B/T;         
-	tauM			= 0; 
+	tauM		= 0; 
 
 	% Time Parameters
-	ts				= 1/fs;
-	Ns			= floor(T/ts);
-	time			= linspace(-T/2,T/2,Ns);
+	ts		= 1/fs;
+	Ns		= floor(T/ts);
+	time		= linspace(-T/2,T/2,Ns);
 
 	% FFT Parameters
 	nFFT	= 8192;
-	Fs		= 1/(ts * D);
+	Fs	= 1/(ts * D);
 	freq	= (-nFFT/2:nFFT/2-1)*(Fs/nFFT);
 	rng	= (c*freq)./(2.*chirp_rate);
 	
 	% Target Parameters
-	A			= target.A;
+	A	= target.A;
 	rngFnt	= target.rngFnt;
 	rngOff	= target.rngOff;
-	V			= target.V;
-	T0		= 2.*rngFnt./c;
+	V	= target.V;
+	T0	= 2.*rngFnt./c;
 	tauR	= 2.*rngOff./c;
 	
 	% Initialize Signal Vectors/Matrices
-	Signal = zeros(nFFT, pulses);
-	timeDC	= downsample(time, D);
+	Signal 		= zeros(nFFT, pulses);
+	timeDC		= downsample(time, D);
 	signalDC	= zeros(length(timeDC), pulses);
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
