@@ -1,109 +1,96 @@
 close all;
 clear all;
 
-% Simulation Details
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Plot(s) Decleration
+figure;
+sb1 = subplot(2,1,1);
+hold(sb1,'on');
+grid on;
+xlabel("Pulse Width (t/T)",'FontSize',14)
+
+sb2 = subplot(2,1,2);
+hold(sb2,'on');
+grid on;
+xlabel("Range (m)",'FontSize',14)
+ylabel("dB",'FontSize',14)
+ylim([0 60])
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Model Details
+c	= physconst('lightspeed');		% Speed of Light (m/s)
+
 includeNoise	= false;
 
 % Radar Parameters
-Radar.T              = 64e-6;      % LFM Period
-Radar.fs             = 0.7e9;      % First Sample Frequency
-Radar.fs2            = 5e6;        % Second Sampling Frequency
-Radar.B              = 550e6;      % LFM Bandwidth
-Radar.pulses         = 1;          % Number of Pulses
+Radar.T				= 64e-6;			% LFM Period (s)
+Radar.fs				= 0.8e9;			% First Sample Frequency (Hz)
+Radar.fs2				= 10e6;			% Second Sampling Frequency (Hz)
+Radar.B				= 500e6;			% LFM Bandwidth (Hz)
+Radar.TauR			= 0;					% Estimated time delay of Target (s)
 
 % Target Details
-Target.A   	= [0 3 6 14 16 14]-20; % snr in dB
-Target.rngFnt   = 10e3;
-Target.rngOff	= [-10 -5 0 2 5 5.4]; % rng offset in meters wrt center of gate
-
-[signalDC, Signal] = StretchProcessingWaveform(Radar, Target, includeNoise, 4);
+Target.A           = [0 3 6 14 16 14]-20;	% Scatterers' SNR (dB)
+Target.rngOff	= [-10 -5 0 2 5 5.4];		% Scatterers' Range
 
 
-function [signalDC, Signal] = StretchProcessingWaveform(radar,target,includeNoise, figureNumber)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Generate Model
+[signal, time] = generateStretchProcessingSignal(Radar, Target, includeNoise);
+
+% Decimate the Signal
+D				= Radar.fs/Radar.fs2;
+signalDC	= decimate(signal.',D,'fir');
+timeDC    = downsample(time, D);
+
+% FFT Parameters
+nFFT	= 8192;
+Fs		= 1/((1/Radar.fs) * D);
+freq	= (-nFFT/2:nFFT/2-1)*(Fs/nFFT);
+
+% Apply an FFT to the TIme-Domain Signal
+Signal = fftshift(fft(signalDC,nFFT));
+
+% High Range Res Vector
+chirp_rate	= Radar.B/Radar.T;         
+rng	= (c*freq)./(2.*chirp_rate);
+
+% Plotting the Resutls
+plot(sb1, timeDC./Radar.T, real((signalDC(:,1))),'linewidth',1.5)
+plot(sb2, rng, mag2db(abs((Signal(:,1)))), 'linewidth',1.5)
+sgtitle("Target Response using a " + Radar.B/10^6 + " MHz Bandwidth and Range Delay of " + (c*Radar.TauR/2) + " m",'FontSize',14)
+xlim([-20 20])
+
+%% Functions
+
+function [signal, time] = generateStretchProcessingSignal(Radar,Target,includeNoise)
 	
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	% Figure Decleration
-	figure(figureNumber);
-	sb1 = subplot(2,1,1);
-	hold(sb1,'on');
-	grid on;
-	xlabel("Pulse Width (\mus)",'FontSize',14)
-
-	sb2 = subplot(2,1,2);
-	hold(sb2,'on');
-	grid on;
-	xlabel("Range (m)",'FontSize',14)
-	ylabel("dB",'FontSize',14)
-	xlim([(target.rngFnt-70) (target.rngFnt + 70)])
-	ylim([0 60])
-
-	sgtitle("Target Response using a " + radar.B/10^6 + " MHz Bandwidth",'FontSize',14)
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	% Parameter(s) Decleratrion
-	c	= physconst('lightspeed');		% (m/s) - Speed of Light
+	% Speed of Light (m/s)
+	c	= physconst('lightspeed');
 
 	% Radar Parameters
-	T  		= radar.T;
-	fs		= radar.fs;
-	fs2		= radar.fs2;
-	pulses		= radar.pulses;
-	B		= radar.B;
-	D		= fs/fs2;
-	chirp_rate	= B/T;         
-	tauM		= 0; 
+	tauP				= Radar.T;		% Period of the LFM (s)
+	fs					= Radar.fs;	% Sampling Rate (Hz)
+	B					= Radar.B;	% LFM Bandwidth
+	chirpRate		= B/tauP;		% LFM Chirp Slope
 
 	% Time Parameters
-	ts		= 1/fs;
-	Ns		= floor(T/ts);
-	time		= linspace(-T/2,T/2,Ns);
-
-	% FFT Parameters
-	nFFT	= 8192;
-	Fs	= 1/(ts * D);
-	freq	= (-nFFT/2:nFFT/2-1)*(Fs/nFFT);
-	rng	= (c*freq)./(2.*chirp_rate);
+	ts				= 1/fs;												% Sample Size (s)
+	Ns			= floor(tauP/ts);								% Size of the time vector (n)
+	time			= linspace(-tauP/2,tauP/2,Ns);		% Time Vector (s)
 	
 	% Target Parameters
-	A	= target.A;
-	rngFnt	= target.rngFnt;
-	rngOff	= target.rngOff;
-	V	= target.V;
-	T0	= 2.*rngFnt./c;
-	tauR	= 2.*rngOff./c;
-	
-	% Initialize Signal Vectors/Matrices
-	Signal 		= zeros(nFFT, pulses);
-	timeDC		= downsample(time, D);
-	signalDC	= zeros(length(timeDC), pulses);
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	A			= Target.A;											% Amplitude of the scatterers
+	rngOff	= Target.rngOff;									% Range of the scatterers
+	tauR	= 2.*rngOff./c - Radar.TauR;				% Time-Delay of the scatterers
 
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	% Calculations
-	for pCnt = 1:pulses
+	signal = sum(db2mag(A.') .* (cos(2 .* pi .* chirpRate .* (tauR.') .* time) + 1j.*sin(2 .* pi .* chirpRate .* (tauR.') .* time)), 1);
 
-		% Scatter(s) Responses Post-DeMixing, Eq (12.19) - Basic Radar Analysis
-		signal = sum(db2mag(A.') .* exp(1j .* pi .* chirp_rate .* (tauM.^2 - (tauR.').^2)) .* exp(1j .* 2 .* pi .* chirp_rate .* (tauR.' - tauM) .* time), 1);
-	
-		% Check to Add Noise
-		if includeNoise == true
-			noise = 1/sqrt(2)*complex(randn(1,length(signal)),randn(1,length(signal)));
-			signal = signal + noise;
-		end
-	
-		% Decimate the Signal
-		signalDC(:,pCnt) = decimate(signal.',D,'fir');
-	
-		% Apply an FFT to the TIme-Domain Signal
-		Signal(:,pCnt) = fftshift(fft(signalDC(:,pCnt),nFFT));
-	
+	% Check to Add Noise
+	if includeNoise == true
+		noise = 1/sqrt(2)*complex(randn(1,length(signal)),randn(1,length(signal)));
+		signal = signal + noise;
 	end
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	% Plotting the Resutls
-	plot(sb1, timeDC./T, real((signalDC(:,1))),'linewidth',1.5)
-	plot(sb2, rng + rngFnt, mag2db(abs((Signal(:,1)))), 'linewidth',1.5)
 
 end
+
